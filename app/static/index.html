@@ -286,7 +286,7 @@ function renderParamsForm() {
       input.type = 'color';
       input.id = 'param-' + p.key;
       input.name = p.key;
-      const hexVal = fmValue || defaultValue || 'E94845';
+      const hexVal = fmValue || defaultValue || '000000';
       input.value = '#' + hexVal.replace('#', '');
 
       const hexLabel = document.createElement('span');
