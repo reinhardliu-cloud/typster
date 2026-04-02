@@ -1,0 +1,36 @@
+{
+  "id": "custom-graceful-genetics-c0df1549",
+  "name": "graceful-genetics",
+  "name_source": "package-meta",
+  "description": "A paper template with which to publish in journals and at conferences",
+  "scenario": "custom",
+  "source": "uploaded-typst-package",
+  "wrapper_template": "wrapper.typ.jinja",
+  "params": [
+    {
+      "key": "title",
+      "type": "text",
+      "label": "Title",
+      "required": false,
+      "default": ""
+    },
+    {
+      "key": "author",
+      "type": "text",
+      "label": "Author",
+      "required": false,
+      "default": ""
+    }
+  ],
+  "tags": [
+    "paper",
+    "article",
+    "journal",
+    "conference",
+    "academic",
+    "research",
+    "genetics",
+    "biology",
+    "life-science"
+  ]
+}

@@ -1,6 +1,7 @@
 {
   "id": "bubble",
   "name": "Bubble Template",
+  "scenario": "business",
   "description": "Simple and colorful report template with bubble decorations",
   "params": [
     { "key": "title",       "type": "text",  "label": "Title",        "required": true,  "default": "" },

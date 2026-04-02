@@ -15,6 +15,19 @@
   .step-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #E94845; margin-bottom: 0.5rem; }
   .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1.25rem; }
 
+  .scenario-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .scenario-chip {
+    border: 1.5px solid #dfe6e9; border-radius: 999px; background: #fff; color: #636e72;
+    padding: 0.35rem 0.8rem; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  }
+  .scenario-chip.active { border-color: #E94845; color: #E94845; background: #fff5f5; }
+
+  .theme-upload-row {
+    margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dfe6e9;
+    display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
+  }
+  .theme-upload-note { font-size: 0.8rem; color: #636e72; }
+
   /* Template cards */
   .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
   .template-card { border: 2px solid #e0e0e0; border-radius: 8px; padding: 1.25rem; cursor: pointer; transition: all 0.2s; }
@@ -106,8 +119,21 @@
   <div class="card" id="step-template">
     <div class="step-label">Step 1</div>
     <div class="section-title">Choose a Template</div>
+    <div class="scenario-row" id="scenario-row">
+      <button type="button" class="scenario-chip active" data-scenario="all">All</button>
+      <button type="button" class="scenario-chip" data-scenario="academic">Academic</button>
+      <button type="button" class="scenario-chip" data-scenario="business">Business</button>
+      <button type="button" class="scenario-chip" data-scenario="resume">Resume</button>
+      <button type="button" class="scenario-chip" data-scenario="technical">Technical</button>
+      <button type="button" class="scenario-chip" data-scenario="custom">Custom</button>
+    </div>
     <div class="template-grid" id="template-grid">
       <div style="color:#b2bec3">Loading templates&hellip;</div>
+    </div>
+    <div class="theme-upload-row">
+      <input type="file" id="theme-zip-input" accept=".zip" style="display:none" onchange="handleThemeZipSelect(event)">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('theme-zip-input').click()">Upload Theme Zip</button>
+      <span class="theme-upload-note" id="theme-upload-note">Required files: meta.json, template.typ, wrapper.typ.jinja</span>
     </div>
     <div class="actions-row">
       <button class="btn btn-primary" id="btn-next-template" disabled onclick="goToStep(1)">Next &rarr;</button>
@@ -176,27 +202,61 @@ let mdFile = null;
 let mdContent = '';
 let frontmatter = {};
 let derivedFileTitle = '';
+let sessionId = null;
+let allTemplates = [];
+let selectedScenario = 'all';
 
 // ---- Init ----
 async function init() {
+  bindScenarioFilters();
+  await refreshTemplates();
+}
+
+async function refreshTemplates() {
   try {
-    const resp = await fetch('/api/templates');
-    const templates = await resp.json();
-    renderTemplateGrid(templates);
+    const query = sessionId ? ('?session_id=' + encodeURIComponent(sessionId)) : '';
+    const resp = await fetch('/api/templates' + query);
+    allTemplates = await resp.json();
+    renderTemplateGrid();
   } catch(e) {
     document.getElementById('template-grid').innerHTML = '<div class="error-box">Failed to load templates.</div>';
   }
 }
 
-function renderTemplateGrid(templates) {
+function bindScenarioFilters() {
+  document.querySelectorAll('.scenario-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.scenario-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      selectedScenario = chip.dataset.scenario || 'all';
+      renderTemplateGrid();
+    });
+  });
+}
+
+function templateScenario(meta) {
+  if (!meta || !meta.id) return 'custom';
+  if (meta.id.startsWith('custom-')) return 'custom';
+  return (meta.scenario || 'business').toLowerCase();
+}
+
+function renderTemplateGrid() {
   const grid = document.getElementById('template-grid');
   grid.innerHTML = '';
+
+  const templates = allTemplates.filter(t => selectedScenario === 'all' || templateScenario(t) === selectedScenario);
+  if (!templates.length) {
+    grid.innerHTML = '<div style="color:#b2bec3">No templates in this scenario yet.</div>';
+    return;
+  }
+
   templates.forEach(t => {
     const card = document.createElement('div');
     card.className = 'template-card';
     card.dataset.id = t.id;
+    const badge = t.id.startsWith('custom-') ? 'custom' : (t.scenario || 'built-in');
     card.innerHTML =
-      '<div class="template-badge">' + escapeHtml(t.id) + '</div>' +
+      '<div class="template-badge">' + escapeHtml(badge) + '</div>' +
       '<h3>' + escapeHtml(t.name) + '</h3>' +
       '<p>' + escapeHtml(t.description) + '</p>';
     card.onclick = () => selectTemplate(t, card);
@@ -210,6 +270,46 @@ function selectTemplate(meta, cardEl) {
   selectedTemplateId = meta.id;
   selectedTemplateMeta = meta;
   document.getElementById('btn-next-template').disabled = false;
+}
+
+async function handleThemeZipSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (!file.name.toLowerCase().endsWith('.zip')) {
+    showGlobalError('Theme package must be a .zip file');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('theme_zip', file);
+  if (sessionId) {
+    formData.append('session_id', sessionId);
+  }
+
+  const note = document.getElementById('theme-upload-note');
+  note.textContent = 'Uploading and validating theme package...';
+  showSpinner(true);
+  try {
+    const resp = await fetch('/api/theme/upload', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!resp.ok) {
+      throw new Error(data.detail || 'Theme upload failed');
+    }
+    sessionId = data.session_id;
+    note.textContent = '✅ Uploaded: ' + data.template.name;
+    selectedScenario = 'custom';
+    document.querySelectorAll('.scenario-chip').forEach(c => c.classList.remove('active'));
+    const customChip = document.querySelector('.scenario-chip[data-scenario="custom"]');
+    if (customChip) customChip.classList.add('active');
+    await refreshTemplates();
+  } catch (e) {
+    showGlobalError(String(e.message || e));
+    note.textContent = 'Upload failed. Required: meta.json, template.typ, wrapper.typ.jinja';
+  } finally {
+    showSpinner(false);
+    event.target.value = '';
+  }
 }
 
 // ---- File upload ----
@@ -335,6 +435,9 @@ async function doConvert() {
   const formData = new FormData();
   formData.append('md_file', mdFile);
   formData.append('template_id', selectedTemplateId);
+  if (sessionId) {
+    formData.append('session_id', sessionId);
+  }
 
   // Collect params
   const params = {};
@@ -362,6 +465,7 @@ async function doConvert() {
     if (!resp.ok) {
       showResult(null, data.detail || 'Conversion failed');
     } else {
+      sessionId = data.session_id || sessionId;
       showResult(data, null);
     }
   } catch(e) {
@@ -394,6 +498,15 @@ function showResult(data, error) {
   }
 }
 
+function showGlobalError(message) {
+  const errContainer = document.getElementById('error-container');
+  const resultContent = document.getElementById('result-content');
+  errContainer.innerHTML = '<div class="error-box"><strong>Error</strong>\n' + escapeHtml(message) + '</div>';
+  errContainer.classList.remove('hidden');
+  resultContent.classList.add('hidden');
+  goToStep(3);
+}
+
 // ---- Navigation ----
 const steps = ['step-template', 'step-upload', 'step-params', 'step-result'];
 
@@ -417,7 +530,9 @@ function reset() {
   document.getElementById('btn-next-template').disabled = true;
   document.getElementById('btn-next-upload').disabled = true;
   document.getElementById('md-input').value = '';
+  document.getElementById('theme-upload-note').textContent = 'Required files: meta.json, template.typ, wrapper.typ.jinja';
   goToStep(0);
+  refreshTemplates();
 }
 
 // ---- Helpers ----

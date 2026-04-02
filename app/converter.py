@@ -12,10 +12,15 @@ from jinja2 import Environment, FileSystemLoader
 SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", "/tmp/sessions"))
 APP_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = Path(os.environ.get("TEMPLATES_DIR", APP_DIR / "templates"))
+CUSTOM_TEMPLATES_DIR = Path(os.environ.get("CUSTOM_TEMPLATES_DIR", APP_DIR / "templates_custom"))
 
 
 def get_session_dir(session_id: str) -> Path:
     return SESSIONS_DIR / session_id
+
+
+def get_session_themes_dir(session_id: str) -> Path:
+    return get_session_dir(session_id) / "themes"
 
 
 def parse_frontmatter(md_content: str) -> dict:
@@ -34,15 +39,10 @@ def strip_frontmatter(md_content: str) -> str:
     return re.sub(r'^---\s*\n.*?\n---\s*\n', '', md_content, count=1, flags=re.DOTALL)
 
 
-def load_template_meta(template_id: str) -> dict:
-    # Validate template_id and extract safe value from the match to cut taint
-    m = re.fullmatch(r'[a-zA-Z0-9_-]+', template_id)
-    if not m:
-        raise ValueError(f"Invalid template ID: {template_id!r}")
-    safe_id = m.group(0)
-    meta_path = TEMPLATES_DIR / safe_id / "meta.json"
+def load_template_meta(template_dir: Path) -> dict:
+    meta_path = template_dir / "meta.json"
     if not meta_path.exists():
-        raise FileNotFoundError(f"Template not found: {safe_id!r}")
+        raise FileNotFoundError(f"Template metadata not found: {meta_path}")
     with open(meta_path) as f:
         return json.load(f)
 
@@ -54,12 +54,45 @@ def normalize_template_id(template_id: str) -> str:
     return m.group(0)
 
 
-def list_templates() -> list:
+def _load_templates_from_dir(templates_dir: Path) -> list[dict]:
+    if not templates_dir.exists():
+        return []
+
     templates = []
-    for d in TEMPLATES_DIR.iterdir():
+    for d in templates_dir.iterdir():
         if d.is_dir() and (d / "meta.json").exists():
             with open(d / "meta.json") as f:
                 templates.append(json.load(f))
+    return templates
+
+
+def resolve_template_dir(template_id: str, session_id: str | None = None) -> Path:
+    safe_template_id = normalize_template_id(template_id)
+
+    built_in = TEMPLATES_DIR / safe_template_id
+    if (built_in / "meta.json").exists():
+        return built_in
+
+    installed_custom = CUSTOM_TEMPLATES_DIR / safe_template_id
+    if (installed_custom / "meta.json").exists():
+        return installed_custom
+
+    if session_id:
+        session_theme_dir = get_session_themes_dir(session_id) / safe_template_id
+        if (session_theme_dir / "meta.json").exists():
+            return session_theme_dir
+
+    raise FileNotFoundError(f"Template not found: {safe_template_id!r}")
+
+
+def list_templates(session_id: str | None = None) -> list:
+    templates = _load_templates_from_dir(TEMPLATES_DIR)
+    templates.extend(_load_templates_from_dir(CUSTOM_TEMPLATES_DIR))
+
+    if session_id:
+        templates.extend(_load_templates_from_dir(get_session_themes_dir(session_id)))
+
+    templates.sort(key=lambda t: (0 if str(t.get("id", "")).startswith("bubble") else 1, str(t.get("name", ""))))
     return templates
 
 
@@ -89,8 +122,8 @@ def convert(
     session_dir.mkdir(parents=True, exist_ok=True)
 
     safe_template_id = normalize_template_id(template_id)
-    meta = load_template_meta(safe_template_id)
-    template_dir = TEMPLATES_DIR / safe_template_id
+    template_dir = resolve_template_dir(safe_template_id, session_id=session_id)
+    meta = load_template_meta(template_dir)
 
     # Write full markdown (with frontmatter) for docx/odt
     input_md = session_dir / "input.md"
