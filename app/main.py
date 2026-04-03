@@ -17,7 +17,14 @@ from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from converter import convert, list_templates, get_session_dir, get_session_themes_dir
+from converter import (
+    convert,
+    list_templates,
+    get_session_dir,
+    get_session_themes_dir,
+    CUSTOM_TEMPLATES_DIR,
+    TEMPLATES_DIR,
+)
 from theme_package import install_theme_package, install_theme_package_from_tar
 
 SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", "/tmp/sessions"))
@@ -218,6 +225,34 @@ def _extract_repo_from_input(raw_value: str) -> str:
     )
 
 
+def _read_theme_meta(theme_dir: Path) -> dict:
+    meta_path = theme_dir / "meta.json"
+    if not meta_path.exists():
+        return {}
+    try:
+        raw = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _write_theme_meta(theme_dir: Path, meta: dict) -> None:
+    meta_path = theme_dir / "meta.json"
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _find_theme_dir_by_meta_id(root_dir: Path, template_id: str) -> Path | None:
+    if not root_dir.exists():
+        return None
+    for candidate in root_dir.iterdir():
+        if not candidate.is_dir():
+            continue
+        meta = _read_theme_meta(candidate)
+        if str(meta.get("id", "")).strip() == template_id:
+            return candidate
+    return None
+
+
 def _init_typst_package_as_theme(package_spec: str, session_themes_dir: Path) -> dict:
     """Initialize a Typst package and make it available as a template."""
     package_spec = (package_spec or "").strip()
@@ -265,7 +300,7 @@ def _init_typst_package_as_theme(package_spec: str, session_themes_dir: Path) ->
             raise ValueError("Failed to read package metadata") from exc
     else:
         package_name = package_spec.split("/")[-1].split(":")[0] if "/" in package_spec else package_spec
-        theme_id = f"typst-init-{package_name}-{uuid.uuid4().hex[:8]}"
+        theme_id = installed_dir.name
         meta = {
             "id": theme_id,
             "name": package_name,
@@ -273,14 +308,15 @@ def _init_typst_package_as_theme(package_spec: str, session_themes_dir: Path) ->
             "scenario": "technical",
             "author": "Typst",
         }
-        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if not isinstance(meta, dict):
         raise ValueError("Package metadata format is invalid")
 
-    meta.setdefault("id", f"custom-{uuid.uuid4().hex[:8]}")
+    # Keep ID aligned with directory so resolve/delete actions stay stable.
+    meta["id"] = installed_dir.name
     meta.setdefault("source", "typst-init")
     meta.setdefault("source_ref", package_spec)
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     return meta
 
 
@@ -336,6 +372,8 @@ async def api_theme_upload(
             meta = install_theme_package(file_bytes, get_session_themes_dir(safe_session_id))
         else:
             meta = install_theme_package_from_tar(file_bytes, get_session_themes_dir(safe_session_id))
+        meta.setdefault("source", "uploaded-archive")
+        meta.setdefault("source_ref", theme_file.filename or "theme-archive")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -377,6 +415,219 @@ async def api_typst_init(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return JSONResponse({"session_id": safe_session_id, "template": meta})
+
+
+@app.post("/api/theme/delete")
+async def api_theme_delete(
+    template_id: str = Form(...),
+    session_id: Optional[str] = Form(default=None),
+    delete_scope: str = Form(default="auto"),
+):
+    """Delete a session theme, or a custom unpinned theme."""
+    safe_session_id = None
+    if session_id:
+        try:
+            safe_session_id = str(uuid.UUID(session_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="session_id must be a valid UUID") from exc
+
+    safe_template_id = (template_id or "").strip()
+    if not re.fullmatch(r"[a-zA-Z0-9_.-]+", safe_template_id):
+        raise HTTPException(status_code=400, detail="template_id is invalid")
+
+    scope = (delete_scope or "auto").strip().lower()
+    if scope not in {"auto", "session", "custom"}:
+        raise HTTPException(status_code=400, detail="delete_scope must be auto, session, or custom")
+
+    # 1) Session-local themes can always be deleted.
+    if safe_session_id and scope in {"auto", "session"}:
+        themes_root = get_session_themes_dir(safe_session_id)
+        session_theme_dir = themes_root / safe_template_id
+        if not session_theme_dir.exists() or not session_theme_dir.is_dir():
+            matched_dir = _find_theme_dir_by_meta_id(themes_root, safe_template_id)
+            if matched_dir is not None:
+                session_theme_dir = matched_dir
+        if session_theme_dir.exists() and session_theme_dir.is_dir():
+            shutil.rmtree(session_theme_dir, ignore_errors=True)
+            return JSONResponse({
+                "session_id": safe_session_id,
+                "deleted": True,
+                "template_id": safe_template_id,
+                "scope": "session",
+            })
+
+    # 2) Custom templates can be deleted only when unpinned (persistent=false).
+    custom_theme_dir = CUSTOM_TEMPLATES_DIR / safe_template_id
+    if not custom_theme_dir.exists() or not custom_theme_dir.is_dir():
+        matched_custom = _find_theme_dir_by_meta_id(CUSTOM_TEMPLATES_DIR, safe_template_id)
+        if matched_custom is not None:
+            custom_theme_dir = matched_custom
+    if custom_theme_dir.exists() and custom_theme_dir.is_dir() and scope in {"auto", "custom"}:
+        meta = _read_theme_meta(custom_theme_dir)
+        if bool(meta.get("persistent", True)):
+            raise HTTPException(
+                status_code=400,
+                detail="Theme is permanent. Disable permanence in settings before deleting.",
+            )
+        shutil.rmtree(custom_theme_dir, ignore_errors=True)
+        return JSONResponse({
+            "session_id": safe_session_id,
+            "deleted": True,
+            "template_id": safe_template_id,
+            "scope": "custom",
+        })
+
+    raise HTTPException(status_code=404, detail="Theme not found")
+
+
+@app.post("/api/theme/persistence")
+async def api_theme_persistence(
+    template_id: str = Form(...),
+    persistent: bool = Form(...),
+    session_id: Optional[str] = Form(default=None),
+):
+    """Toggle theme permanence. Permanent themes are stored under templates_custom and protected from deletion."""
+    safe_template_id = (template_id or "").strip()
+    if not re.fullmatch(r"[a-zA-Z0-9_.-]+", safe_template_id):
+        raise HTTPException(status_code=400, detail="template_id is invalid")
+
+    custom_dir = CUSTOM_TEMPLATES_DIR / safe_template_id
+    built_in_dir = TEMPLATES_DIR / safe_template_id
+
+    if persistent:
+        # Already persisted: just mark metadata pinned.
+        if custom_dir.exists() and custom_dir.is_dir():
+            meta = _read_theme_meta(custom_dir)
+            if not meta:
+                raise HTTPException(status_code=400, detail="Persistent template metadata is missing")
+            meta["id"] = custom_dir.name
+            meta["persistent"] = True
+            meta.setdefault("source", "persistent-custom")
+            _write_theme_meta(custom_dir, meta)
+            return JSONResponse({"template_id": safe_template_id, "persistent": True, "scope": "custom"})
+
+        if built_in_dir.exists() and built_in_dir.is_dir():
+            raise HTTPException(status_code=400, detail="Built-in templates are already permanent")
+
+        if not session_id:
+            raise HTTPException(status_code=400, detail="session_id is required to persist this theme")
+        try:
+            safe_session_id = str(uuid.UUID(session_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="session_id must be a valid UUID") from exc
+
+        session_root = get_session_themes_dir(safe_session_id)
+        source_dir = session_root / safe_template_id
+        if not source_dir.exists() or not source_dir.is_dir():
+            matched_source = _find_theme_dir_by_meta_id(session_root, safe_template_id)
+            if matched_source is None:
+                raise HTTPException(status_code=404, detail="Theme not found in this session")
+            source_dir = matched_source
+
+        CUSTOM_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+        if custom_dir.exists():
+            raise HTTPException(status_code=409, detail="A persistent theme with this id already exists")
+
+        shutil.copytree(source_dir, custom_dir)
+        meta = _read_theme_meta(custom_dir)
+        if not meta:
+            raise HTTPException(status_code=400, detail="Cannot persist theme without meta.json")
+        meta["id"] = custom_dir.name
+        meta["persistent"] = True
+        meta.setdefault("source", "persistent-custom")
+        _write_theme_meta(custom_dir, meta)
+        shutil.rmtree(source_dir, ignore_errors=True)
+        return JSONResponse({"template_id": meta["id"], "persistent": True, "scope": "custom"})
+
+    # persistent=False -> unpin custom template, making it deletable.
+    if built_in_dir.exists() and built_in_dir.is_dir():
+        raise HTTPException(status_code=400, detail="Built-in templates cannot change permanence")
+
+    if not custom_dir.exists() or not custom_dir.is_dir():
+        matched_custom = _find_theme_dir_by_meta_id(CUSTOM_TEMPLATES_DIR, safe_template_id)
+        if matched_custom is None:
+            raise HTTPException(status_code=404, detail="Persistent theme not found")
+        custom_dir = matched_custom
+
+    meta = _read_theme_meta(custom_dir)
+    if not meta:
+        raise HTTPException(status_code=400, detail="Persistent template metadata is missing")
+    meta["id"] = custom_dir.name
+    meta["persistent"] = False
+    meta.setdefault("source", "persistent-custom")
+    _write_theme_meta(custom_dir, meta)
+    return JSONResponse({"template_id": meta["id"], "persistent": False, "scope": "custom"})
+
+
+@app.post("/api/theme/scenario")
+async def api_theme_scenario(
+    template_id: str = Form(...),
+    scenario: str = Form(...),
+    session_id: Optional[str] = Form(default=None),
+    update_scope: str = Form(default="auto"),
+):
+    """Update theme scenario tag used by UI filters."""
+    safe_template_id = (template_id or "").strip()
+    if not re.fullmatch(r"[a-zA-Z0-9_.-]+", safe_template_id):
+        raise HTTPException(status_code=400, detail="template_id is invalid")
+
+    scenario_value = (scenario or "").strip().lower()
+    allowed_scenarios = {"academic", "business", "resume", "technical", "custom"}
+    if scenario_value not in allowed_scenarios:
+        raise HTTPException(status_code=400, detail="scenario is invalid")
+
+    scope = (update_scope or "auto").strip().lower()
+    if scope not in {"auto", "session", "custom"}:
+        raise HTTPException(status_code=400, detail="update_scope must be auto, session, or custom")
+
+    safe_session_id = None
+    if session_id:
+        try:
+            safe_session_id = str(uuid.UUID(session_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="session_id must be a valid UUID") from exc
+
+    # Built-in templates are immutable.
+    built_in_dir = TEMPLATES_DIR / safe_template_id
+    if built_in_dir.exists() and built_in_dir.is_dir():
+        raise HTTPException(status_code=400, detail="Built-in template scenario cannot be changed")
+
+    target_dir = None
+    target_scope = None
+
+    if scope in {"auto", "custom"}:
+        custom_dir = CUSTOM_TEMPLATES_DIR / safe_template_id
+        if not custom_dir.exists() or not custom_dir.is_dir():
+            custom_dir = _find_theme_dir_by_meta_id(CUSTOM_TEMPLATES_DIR, safe_template_id)
+        if custom_dir is not None and custom_dir.exists() and custom_dir.is_dir():
+            target_dir = custom_dir
+            target_scope = "custom"
+
+    if target_dir is None and safe_session_id and scope in {"auto", "session"}:
+        session_root = get_session_themes_dir(safe_session_id)
+        session_dir = session_root / safe_template_id
+        if not session_dir.exists() or not session_dir.is_dir():
+            session_dir = _find_theme_dir_by_meta_id(session_root, safe_template_id)
+        if session_dir is not None and session_dir.exists() and session_dir.is_dir():
+            target_dir = session_dir
+            target_scope = "session"
+
+    if target_dir is None:
+        raise HTTPException(status_code=404, detail="Theme not found")
+
+    meta = _read_theme_meta(target_dir)
+    if not meta:
+        raise HTTPException(status_code=400, detail="Theme metadata is missing")
+    meta["id"] = target_dir.name
+    meta["scenario"] = scenario_value
+    _write_theme_meta(target_dir, meta)
+
+    return JSONResponse({
+        "template_id": meta["id"],
+        "scenario": scenario_value,
+        "scope": target_scope,
+        "session_id": safe_session_id,
+    })
 
 
 @app.post("/api/convert")

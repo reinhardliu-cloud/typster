@@ -28,6 +28,49 @@
   }
   .theme-upload-note { font-size: 0.8rem; color: #636e72; }
   .theme-cli-toggle { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: #636e72; }
+  .theme-settings-wrap { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dfe6e9; }
+  .theme-settings-toggle-row { margin-top: 0.8rem; display: flex; justify-content: flex-start; }
+  .settings-tabs { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+  .settings-tab {
+    border: 1px solid #dfe6e9;
+    background: #fff;
+    color: #636e72;
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .settings-tab.active { border-color: #E94845; color: #E94845; background: #fff5f5; }
+  .settings-page { display: none; }
+  .settings-page.active { display: block; }
+  .settings-hint { font-size: 0.8rem; color: #636e72; margin-bottom: 0.6rem; }
+  .settings-list { display: grid; gap: 0.55rem; }
+  .settings-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.8rem;
+    align-items: center;
+    border: 1px solid #eceff1;
+    border-radius: 10px;
+    padding: 0.65rem 0.75rem;
+    background: #fff;
+  }
+  .settings-item-title { font-size: 0.88rem; font-weight: 600; color: #2d3436; }
+  .settings-item-meta { font-size: 0.74rem; color: #95a5a6; }
+  .settings-actions { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .settings-btn {
+    border: 1px solid #dfe6e9;
+    background: #fff;
+    color: #2d3436;
+    border-radius: 7px;
+    padding: 0.26rem 0.55rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .settings-btn:hover { background: #f8f9fa; }
+  .settings-btn.warn { border-color: #f1c0bf; color: #c0392b; }
 
   /* Template cards */
   .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
@@ -37,6 +80,19 @@
   .template-card h3 { font-size: 1rem; margin-bottom: 0.4rem; }
   .template-card p { font-size: 0.85rem; color: #636e72; }
   .template-badge { display: inline-block; background: #E94845; color: white; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; }
+  .template-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.65rem; }
+  .template-delete-btn {
+    border: 1px solid #f1c0bf;
+    background: #fff;
+    color: #c0392b;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.28rem 0.45rem;
+    cursor: pointer;
+  }
+  .template-delete-btn:hover { background: #fff5f5; border-color: #e89a98; }
 
   /* Upload zone */
   .upload-zone { border: 2px dashed #b2bec3; border-radius: 8px; padding: 2.5rem; text-align: center; cursor: pointer; transition: all 0.2s; }
@@ -219,6 +275,23 @@
       <button type="button" class="btn btn-secondary" onclick="handleTypstInit()">Initialize Typst Package</button>
       <span class="theme-upload-note" id="typst-init-note">e.g., @preview/aero-dhbw:0.1.1</span>
     </div>
+    <div class="theme-settings-toggle-row">
+      <button type="button" class="btn btn-secondary" id="btn-toggle-settings" onclick="toggleThemeSettings()">Show Theme Settings</button>
+    </div>
+    <div class="theme-settings-wrap hidden" id="theme-settings-wrap">
+      <div class="settings-tabs">
+        <button type="button" class="settings-tab active" data-settings-tab="persistence" onclick="switchSettingsPage('persistence')">Settings Page 1: Permanence</button>
+        <button type="button" class="settings-tab" data-settings-tab="deletion" onclick="switchSettingsPage('deletion')">Settings Page 2: Deletion</button>
+      </div>
+      <div class="settings-page active" id="settings-page-persistence">
+        <div class="settings-hint">Pin a theme to make it permanent (stored in templates_custom and protected from deletion).</div>
+        <div class="settings-list" id="settings-list-persistence"></div>
+      </div>
+      <div class="settings-page" id="settings-page-deletion">
+        <div class="settings-hint">Only non-permanent themes can be deleted. Unpin first if needed.</div>
+        <div class="settings-list" id="settings-list-deletion"></div>
+      </div>
+    </div>
     <div class="actions-row">
       <button class="btn btn-primary" id="btn-next-template" disabled onclick="goToStep(1)">Next &rarr;</button>
     </div>
@@ -305,6 +378,7 @@ let selectedScenario = 'all';
 let progressTimer = null;
 let progressStartAt = 0;
 let progressValue = 0;
+let settingsVisible = false;
 
 const conversionPhases = [
   { key: 'upload', label: 'Uploading markdown', status: 'sending', percent: 14, subtitle: 'Sending your markdown, selected theme, and document settings to the server.' },
@@ -325,8 +399,11 @@ async function refreshTemplates() {
     const resp = await fetch('/api/templates' + query);
     allTemplates = await resp.json();
     renderTemplateGrid();
+    renderSettingsPanels();
   } catch(e) {
     document.getElementById('template-grid').innerHTML = '<div class="error-box">Failed to load templates.</div>';
+    document.getElementById('settings-list-persistence').innerHTML = '<div class="settings-hint">Failed to load templates.</div>';
+    document.getElementById('settings-list-deletion').innerHTML = '<div class="settings-hint">Failed to load templates.</div>';
   }
 }
 
@@ -343,8 +420,10 @@ function bindScenarioFilters() {
 
 function templateScenario(meta) {
   if (!meta || !meta.id) return 'custom';
+  const scenario = String(meta.scenario || '').toLowerCase();
+  if (scenario) return scenario;
   if (meta.id.startsWith('custom-')) return 'custom';
-  return (meta.scenario || 'business').toLowerCase();
+  return 'business';
 }
 
 function renderTemplateGrid() {
@@ -362,13 +441,239 @@ function renderTemplateGrid() {
     card.className = 'template-card';
     card.dataset.id = t.id;
     const badge = t.id.startsWith('custom-') ? 'custom' : (t.scenario || 'built-in');
+    const canDelete = canDeleteTemplate(t);
     card.innerHTML =
       '<div class="template-badge">' + escapeHtml(badge) + '</div>' +
-      '<h3>' + escapeHtml(t.name) + '</h3>' +
+      '<div class="template-card-head">' +
+        '<h3>' + escapeHtml(t.name) + '</h3>' +
+        (canDelete ? '<button class="template-delete-btn" data-delete-id="' + escapeHtml(t.id) + '">Delete</button>' : '') +
+      '</div>' +
       '<p>' + escapeHtml(t.description) + '</p>';
     card.onclick = () => selectTemplate(t, card);
+    if (canDelete) {
+      const deleteBtn = card.querySelector('.template-delete-btn');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          handleThemeDelete(t.id, t.name || t.id, t._scope || 'auto');
+        });
+      }
+    }
     grid.appendChild(card);
   });
+}
+
+function canDeleteTemplate(meta) {
+  if (!meta || !meta.id) return false;
+  return !!meta.deletable;
+}
+
+function toggleThemeSettings(forceVisible) {
+  if (typeof forceVisible === 'boolean') {
+    settingsVisible = forceVisible;
+  } else {
+    settingsVisible = !settingsVisible;
+  }
+
+  const panel = document.getElementById('theme-settings-wrap');
+  const btn = document.getElementById('btn-toggle-settings');
+  if (!panel || !btn) return;
+  panel.classList.toggle('hidden', !settingsVisible);
+  btn.textContent = settingsVisible ? 'Hide Theme Settings' : 'Show Theme Settings';
+}
+
+function switchSettingsPage(tabKey) {
+  document.querySelectorAll('.settings-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.settingsTab === tabKey);
+  });
+  document.querySelectorAll('.settings-page').forEach(page => {
+    page.classList.toggle('active', page.id === ('settings-page-' + tabKey));
+  });
+}
+
+function renderSettingsPanels() {
+  const persistenceRoot = document.getElementById('settings-list-persistence');
+  const deletionRoot = document.getElementById('settings-list-deletion');
+  if (!persistenceRoot || !deletionRoot) return;
+
+  if (!allTemplates.length) {
+    persistenceRoot.innerHTML = '<div class="settings-hint">No themes yet.</div>';
+    deletionRoot.innerHTML = '<div class="settings-hint">No themes yet.</div>';
+    return;
+  }
+
+  persistenceRoot.innerHTML = '';
+  deletionRoot.innerHTML = '';
+
+  allTemplates.forEach((t) => {
+    const scope = String(t._scope || 'built-in');
+    const persistent = !!t.persistent;
+    const canToggle = scope !== 'built-in';
+    const canDelete = !!t.deletable;
+    const canEditScenario = scope !== 'built-in';
+    const scenarioValue = templateScenario(t);
+
+    const persistenceItem = document.createElement('div');
+    persistenceItem.className = 'settings-item';
+    persistenceItem.innerHTML =
+      '<div>' +
+        '<div class="settings-item-title">' + escapeHtml(t.name || t.id) + '</div>' +
+        '<div class="settings-item-meta">' + escapeHtml(scope) + ' · ' + (persistent ? 'Permanent' : 'Not permanent') + '</div>' +
+      '</div>' +
+      '<div class="settings-actions">' +
+        (canToggle
+          ? '<button class="settings-btn" data-persist-id="' + escapeHtml(t.id) + '" data-persist-value="' + (persistent ? 'false' : 'true') + '">' + (persistent ? 'Unpin' : 'Pin') + '</button>'
+          : '<span class="settings-item-meta">Built-in</span>') +
+      '</div>';
+    persistenceRoot.appendChild(persistenceItem);
+
+    const scenarioItem = document.createElement('div');
+    scenarioItem.className = 'settings-item';
+    scenarioItem.innerHTML =
+      '<div>' +
+        '<div class="settings-item-title">' + escapeHtml(t.name || t.id) + '</div>' +
+        '<div class="settings-item-meta">Scenario tag: ' + escapeHtml(scenarioValue) + '</div>' +
+      '</div>' +
+      '<div class="settings-actions">' +
+        (canEditScenario
+          ? '<select class="settings-btn" data-scenario-select-id="' + escapeHtml(t.id) + '" data-scenario-select-scope="' + escapeHtml(scope) + '">' +
+              '<option value="academic"' + (scenarioValue === 'academic' ? ' selected' : '') + '>Academic</option>' +
+              '<option value="business"' + (scenarioValue === 'business' ? ' selected' : '') + '>Business</option>' +
+              '<option value="resume"' + (scenarioValue === 'resume' ? ' selected' : '') + '>Resume</option>' +
+              '<option value="technical"' + (scenarioValue === 'technical' ? ' selected' : '') + '>Technical</option>' +
+              '<option value="custom"' + (scenarioValue === 'custom' ? ' selected' : '') + '>Custom</option>' +
+            '</select>' +
+            '<button class="settings-btn" data-scenario-save-id="' + escapeHtml(t.id) + '" data-scenario-save-scope="' + escapeHtml(scope) + '">Save Tag</button>'
+          : '<span class="settings-item-meta">Built-in</span>') +
+      '</div>';
+    persistenceRoot.appendChild(scenarioItem);
+
+    const deleteItem = document.createElement('div');
+    deleteItem.className = 'settings-item';
+    deleteItem.innerHTML =
+      '<div>' +
+        '<div class="settings-item-title">' + escapeHtml(t.name || t.id) + '</div>' +
+        '<div class="settings-item-meta">' + (canDelete ? 'Deletable' : 'Protected') + '</div>' +
+      '</div>' +
+      '<div class="settings-actions">' +
+        (canDelete
+          ? '<button class="settings-btn warn" data-delete-id="' + escapeHtml(t.id) + '" data-delete-name="' + escapeHtml(t.name || t.id) + '" data-delete-scope="' + escapeHtml(scope) + '">Delete</button>'
+          : '<span class="settings-item-meta">Locked</span>') +
+      '</div>';
+    deletionRoot.appendChild(deleteItem);
+  });
+
+  persistenceRoot.querySelectorAll('[data-persist-id]').forEach((btn) => {
+    btn.addEventListener('click', async (event) => {
+      event.preventDefault();
+      const templateId = btn.getAttribute('data-persist-id');
+      const nextValue = btn.getAttribute('data-persist-value') === 'true';
+      await handleTogglePersistence(templateId, nextValue);
+    });
+  });
+
+  persistenceRoot.querySelectorAll('[data-scenario-save-id]').forEach((btn) => {
+    btn.addEventListener('click', async (event) => {
+      event.preventDefault();
+      const templateId = btn.getAttribute('data-scenario-save-id');
+      const scope = btn.getAttribute('data-scenario-save-scope') || 'auto';
+      const selector = persistenceRoot.querySelector('[data-scenario-select-id="' + templateId + '"]');
+      if (!selector) return;
+      await handleScenarioTagUpdate(templateId, selector.value, scope);
+    });
+  });
+
+  deletionRoot.querySelectorAll('[data-delete-id]').forEach((btn) => {
+    btn.addEventListener('click', async (event) => {
+      event.preventDefault();
+      const templateId = btn.getAttribute('data-delete-id');
+      const templateName = btn.getAttribute('data-delete-name') || templateId;
+      const deleteScope = btn.getAttribute('data-delete-scope') || 'auto';
+      await handleThemeDelete(templateId, templateName, deleteScope);
+    });
+  });
+}
+
+async function handleTogglePersistence(templateId, makePersistent) {
+  const formData = new FormData();
+  formData.append('template_id', templateId);
+  formData.append('persistent', makePersistent ? 'true' : 'false');
+  if (sessionId) {
+    formData.append('session_id', sessionId);
+  }
+
+  const note = document.getElementById('theme-upload-note');
+  note.textContent = makePersistent ? 'Saving as permanent theme...' : 'Removing permanence...';
+  try {
+    const resp = await fetch('/api/theme/persistence', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!resp.ok) {
+      throw new Error(data.detail || 'Permanence update failed');
+    }
+    note.textContent = makePersistent ? '✅ Theme pinned permanently' : '✅ Theme unpinned (now deletable)';
+    await refreshTemplates();
+  } catch (e) {
+    showGlobalError(String(e.message || e));
+    note.textContent = 'Permanence update failed.';
+  }
+}
+
+async function handleScenarioTagUpdate(templateId, scenario, updateScope) {
+  const formData = new FormData();
+  formData.append('template_id', templateId);
+  formData.append('scenario', scenario);
+  formData.append('update_scope', updateScope || 'auto');
+  if (sessionId) {
+    formData.append('session_id', sessionId);
+  }
+
+  const note = document.getElementById('theme-upload-note');
+  note.textContent = 'Updating scenario tag...';
+  try {
+    const resp = await fetch('/api/theme/scenario', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!resp.ok) {
+      throw new Error(data.detail || 'Scenario update failed');
+    }
+    note.textContent = '✅ Scenario tag updated to ' + scenario;
+    await refreshTemplates();
+  } catch (e) {
+    showGlobalError(String(e.message || e));
+    note.textContent = 'Scenario update failed.';
+  }
+}
+
+async function handleThemeDelete(templateId, templateName, deleteScope) {
+  const ok = window.confirm('Delete theme "' + templateName + '"?');
+  if (!ok) return;
+
+  const formData = new FormData();
+  formData.append('template_id', templateId);
+  formData.append('delete_scope', deleteScope || 'auto');
+  if (sessionId) {
+    formData.append('session_id', sessionId);
+  }
+
+  const note = document.getElementById('theme-upload-note');
+  note.textContent = 'Deleting theme...';
+  try {
+    const resp = await fetch('/api/theme/delete', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!resp.ok) {
+      throw new Error(data.detail || 'Delete failed');
+    }
+    if (selectedTemplateId === templateId) {
+      selectedTemplateId = null;
+      selectedTemplateMeta = null;
+      document.getElementById('btn-next-template').disabled = true;
+    }
+    note.textContent = '✅ Deleted: ' + templateName;
+    await refreshTemplates();
+  } catch (e) {
+    showGlobalError(String(e.message || e));
+    note.textContent = 'Delete failed.';
+  }
 }
 
 function selectTemplate(meta, cardEl) {
@@ -773,6 +1078,7 @@ function reset() {
   document.getElementById('theme-upload-note').textContent = 'Required files: meta.json, template.typ, wrapper.typ.jinja';
   stopConversionProgress();
   setConvertButtonState(false);
+  toggleThemeSettings(false);
   goToStep(0);
   refreshTemplates();
 }

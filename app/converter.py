@@ -49,13 +49,13 @@ def load_template_meta(template_dir: Path) -> dict:
 
 
 def normalize_template_id(template_id: str) -> str:
-    m = re.fullmatch(r'[a-zA-Z0-9_-]+', template_id)
+    m = re.fullmatch(r'[a-zA-Z0-9_.-]+', template_id)
     if not m:
         raise ValueError(f"Invalid template ID: {template_id!r}")
     return m.group(0)
 
 
-def _load_templates_from_dir(templates_dir: Path) -> list[dict]:
+def _load_templates_from_dir(templates_dir: Path, scope: str) -> list[dict]:
     if not templates_dir.exists():
         return []
 
@@ -63,7 +63,23 @@ def _load_templates_from_dir(templates_dir: Path) -> list[dict]:
     for d in templates_dir.iterdir():
         if d.is_dir() and (d / "meta.json").exists():
             with open(d / "meta.json") as f:
-                templates.append(json.load(f))
+                meta = json.load(f)
+            if not isinstance(meta, dict):
+                continue
+            meta["_scope"] = scope
+            if scope == "session":
+                meta.setdefault("source", "session-installed")
+                meta["persistent"] = False
+                meta["deletable"] = True
+            elif scope == "custom":
+                meta.setdefault("source", "persistent-custom")
+                meta["persistent"] = bool(meta.get("persistent", True))
+                meta["deletable"] = not meta["persistent"]
+            else:
+                meta.setdefault("source", "built-in")
+                meta["persistent"] = True
+                meta["deletable"] = False
+            templates.append(meta)
     return templates
 
 
@@ -87,14 +103,31 @@ def resolve_template_dir(template_id: str, session_id: str | None = None) -> Pat
 
 
 def list_templates(session_id: str | None = None) -> list:
-    templates = _load_templates_from_dir(TEMPLATES_DIR)
-    templates.extend(_load_templates_from_dir(CUSTOM_TEMPLATES_DIR))
+    templates = _load_templates_from_dir(TEMPLATES_DIR, scope="built-in")
+    templates.extend(_load_templates_from_dir(CUSTOM_TEMPLATES_DIR, scope="custom"))
 
     if session_id:
-        templates.extend(_load_templates_from_dir(get_session_themes_dir(session_id)))
+        templates.extend(_load_templates_from_dir(get_session_themes_dir(session_id), scope="session"))
 
-    templates.sort(key=lambda t: (0 if str(t.get("id", "")).startswith("bubble") else 1, str(t.get("name", ""))))
-    return templates
+    # Prefer custom theme over session over built-in when IDs overlap.
+    scope_rank = {"custom": 0, "session": 1, "built-in": 2}
+    deduped: dict[str, dict] = {}
+    for tpl in templates:
+        tpl_id = str(tpl.get("id", "")).strip()
+        if not tpl_id:
+            continue
+        current = deduped.get(tpl_id)
+        if current is None:
+            deduped[tpl_id] = tpl
+            continue
+        current_rank = scope_rank.get(str(current.get("_scope", "built-in")), 3)
+        new_rank = scope_rank.get(str(tpl.get("_scope", "built-in")), 3)
+        if new_rank < current_rank:
+            deduped[tpl_id] = tpl
+
+    result = list(deduped.values())
+    result.sort(key=lambda t: (0 if str(t.get("id", "")).startswith("bubble") else 1, str(t.get("name", ""))))
+    return result
 
 
 def convert(
