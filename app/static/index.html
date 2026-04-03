@@ -59,6 +59,7 @@
   .settings-item-title { font-size: 0.88rem; font-weight: 600; color: #2d3436; }
   .settings-item-meta { font-size: 0.74rem; color: #95a5a6; }
   .settings-actions { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .settings-actions { flex-wrap: wrap; justify-content: flex-end; }
   .settings-btn {
     border: 1px solid #dfe6e9;
     background: #fff;
@@ -519,23 +520,12 @@ function renderSettingsPanels() {
     persistenceItem.innerHTML =
       '<div>' +
         '<div class="settings-item-title">' + escapeHtml(t.name || t.id) + '</div>' +
-        '<div class="settings-item-meta">' + escapeHtml(scope) + ' · ' + (persistent ? 'Permanent' : 'Not permanent') + '</div>' +
+        '<div class="settings-item-meta">' + escapeHtml(scope) + ' · ' + (persistent ? 'Permanent' : 'Not permanent') + ' · Scenario: ' + escapeHtml(scenarioValue) + '</div>' +
       '</div>' +
       '<div class="settings-actions">' +
         (canToggle
           ? '<button class="settings-btn" data-persist-id="' + escapeHtml(t.id) + '" data-persist-value="' + (persistent ? 'false' : 'true') + '">' + (persistent ? 'Unpin' : 'Pin') + '</button>'
           : '<span class="settings-item-meta">Built-in</span>') +
-      '</div>';
-    persistenceRoot.appendChild(persistenceItem);
-
-    const scenarioItem = document.createElement('div');
-    scenarioItem.className = 'settings-item';
-    scenarioItem.innerHTML =
-      '<div>' +
-        '<div class="settings-item-title">' + escapeHtml(t.name || t.id) + '</div>' +
-        '<div class="settings-item-meta">Scenario tag: ' + escapeHtml(scenarioValue) + '</div>' +
-      '</div>' +
-      '<div class="settings-actions">' +
         (canEditScenario
           ? '<select class="settings-btn" data-scenario-select-id="' + escapeHtml(t.id) + '" data-scenario-select-scope="' + escapeHtml(scope) + '">' +
               '<option value="academic"' + (scenarioValue === 'academic' ? ' selected' : '') + '>Academic</option>' +
@@ -545,9 +535,9 @@ function renderSettingsPanels() {
               '<option value="custom"' + (scenarioValue === 'custom' ? ' selected' : '') + '>Custom</option>' +
             '</select>' +
             '<button class="settings-btn" data-scenario-save-id="' + escapeHtml(t.id) + '" data-scenario-save-scope="' + escapeHtml(scope) + '">Save Tag</button>'
-          : '<span class="settings-item-meta">Built-in</span>') +
+          : '') +
       '</div>';
-    persistenceRoot.appendChild(scenarioItem);
+    persistenceRoot.appendChild(persistenceItem);
 
     const deleteItem = document.createElement('div');
     deleteItem.className = 'settings-item';
