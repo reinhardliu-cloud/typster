@@ -5,6 +5,8 @@ import shutil
 import uuid
 import re
 import json
+import base64
+import binascii
 from datetime import datetime, timezone
 from pathlib import Path
 import yaml
@@ -351,6 +353,7 @@ def convert(
     # Step 5: strip pandoc preamble from body.typ
     body_content = body_typ.read_text(encoding="utf-8")
     body_content = strip_pandoc_typst_preamble(body_content)
+    body_content = materialize_typst_data_uri_images(body_content, session_dir)
 
     # Step 6: render Jinja2 wrapper
     env = Environment(loader=FileSystemLoader(str(template_dir)))
@@ -449,6 +452,52 @@ def strip_pandoc_typst_preamble(content: str) -> str:
     body = "\n".join(lines[start:])
     # Pandoc can emit #horizontalrule, which is not available in Typst 0.11.
     return body.replace("#horizontalrule", "#line(length: 100%)")
+
+
+def materialize_typst_data_uri_images(content: str, session_dir: Path) -> str:
+    """Extract base64 data URI images in #image(...) into files in the session dir."""
+    pattern = re.compile(
+        r'#image\(\s*"data:image/(?P<subtype>[A-Za-z0-9.+-]+);base64,(?P<data>[^"]+)"\s*\)'
+    )
+
+    def _ext_from_subtype(subtype: str) -> str:
+        normalized = subtype.lower()
+        if normalized == "svg+xml":
+            return ".svg"
+        if normalized in {"jpeg", "jpg"}:
+            return ".jpg"
+        if normalized in {"png", "gif", "webp", "bmp", "tiff"}:
+            return f".{normalized}"
+        return ".bin"
+
+    assets_dir = session_dir / "embedded_images"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    emitted: dict[str, str] = {}
+    counter = 0
+
+    def _replace(match: re.Match) -> str:
+        nonlocal counter
+        subtype = match.group("subtype")
+        raw_data = match.group("data").strip()
+        if raw_data in emitted:
+            return f'#image("{emitted[raw_data]}")'
+
+        try:
+            decoded = base64.b64decode(raw_data, validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise ValueError("Invalid base64 data URI image found in document content") from exc
+
+        counter += 1
+        ext = _ext_from_subtype(subtype)
+        output_name = f"img_{counter:03d}{ext}"
+        output_file = assets_dir / output_name
+        output_file.write_bytes(decoded)
+
+        relative_path = f"embedded_images/{output_name}"
+        emitted[raw_data] = relative_path
+        return f'#image("{relative_path}")'
+
+    return pattern.sub(_replace, content)
 
 
 def run_cmd(cmd: list, cwd: str = None, timeout: int = 60):
