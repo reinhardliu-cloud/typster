@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import yaml
 from jinja2 import Environment, FileSystemLoader
+from typst_theme_import import serialize_typst_value
 
 SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", "/tmp/sessions"))
 APP_DIR = Path(__file__).resolve().parent
@@ -336,6 +337,16 @@ def convert(
 
     main_color = params.get("main-color", "E94845").lstrip("#")
 
+    # Build typst_params: serialized Typst expressions for auto-generated wrappers
+    # that use {{ typst_params["key"] }} syntax.
+    typst_params_serialized: dict[str, str] = {}
+    for p in effective_params:
+        if p.get("type") == "file":
+            continue
+        key = p["key"]
+        val = params.get(key, p.get("default", ""))
+        typst_params_serialized[key] = serialize_typst_value(val, p)
+
     main_typ_content = tmpl.render(
         template_path=str(template_dir),
         title=params.get("title", ""),
@@ -348,6 +359,7 @@ def convert(
         logo_path=logo_path,
         date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         body=body_content,
+        typst_params=typst_params_serialized,
     )
 
     main_typ = session_dir / "main.typ"

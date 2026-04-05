@@ -220,6 +220,17 @@ def _extract_show_with_template(main_content: str) -> tuple[str, str, list[dict]
 	return prefix, show_expr, parsed_args, params
 
 
+_IMAGE_RE = re.compile(r'image\((["\'])([^"\']+)\1\)')
+
+
+def _fix_image_paths_for_jinja(raw_value: str) -> str:
+	"""Replace image("relative") with image({{ template_path|tojson }} + "/relative")."""
+	def _repl(m: re.Match) -> str:
+		rel_path = m.group(2)
+		return f'image({{{{ template_path|tojson }}}} + "/{rel_path}")'
+	return _IMAGE_RE.sub(_repl, raw_value)
+
+
 def _build_wrapper(prefix: str, show_expr: str, parsed_args: list[dict], params: list[dict]) -> str:
 	param_map = {param["key"]: param for param in params}
 	lines: list[str] = []
@@ -240,7 +251,8 @@ def _build_wrapper(prefix: str, show_expr: str, parsed_args: list[dict], params:
 			else:
 				lines.append(f"  {key}: {rendered},")
 		else:
-			lines.append(f"  {key}: {arg['raw_value']},")
+			fixed_value = _fix_image_paths_for_jinja(arg["raw_value"])
+			lines.append(f"  {key}: {fixed_value},")
 	lines.append(")")
 	lines.append("")
 	lines.append("{{ body }}")
