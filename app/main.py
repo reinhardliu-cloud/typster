@@ -776,8 +776,7 @@ async def api_convert(
         if not session_id:
             shutil.rmtree(get_session_dir(safe_session_id), ignore_errors=True)
             session_registry.pop(safe_session_id, None)
-        logger.exception("Conversion failed for session %s", safe_session_id)
-        raise HTTPException(status_code=422, detail="Conversion failed. Please check your input and try again.")
+        raise HTTPException(status_code=422, detail=str(e))
 
     logger.info(f"[CONVERT] Returning result for session {safe_session_id}")
     return JSONResponse({
