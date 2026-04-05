@@ -4,14 +4,64 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Typst Document Converter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --c-primary: #E94845;
+    --c-primary-hover: #D63A37;
+    --c-primary-bg: #FEF2F2;
+    --c-bg: #F8F7F4;
+    --c-surface: #FFFFFF;
+    --c-theater: #1C1917;
+    --c-text: #1C1917;
+    --c-text-secondary: #78716C;
+    --c-border: #E7E5E4;
+    --c-border-strong: #D6D3D1;
+    --c-success: #16A34A;
+    --shadow-sm: 0 2px 10px rgba(28, 25, 23, 0.06);
+    --shadow-md: 0 10px 24px rgba(28, 25, 23, 0.08);
+    --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.38);
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f5f6fa; color: #2d3436; min-height: 100vh; }
-  .header { background: linear-gradient(135deg, #E94845 0%, #c0392b 100%); color: white; padding: 1.5rem 2rem; }
-  .header h1 { font-size: 1.8rem; font-weight: 700; }
-  .header p { opacity: 0.85; margin-top: 0.25rem; }
-  .container { max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; }
-  .card { background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 2rem; margin-bottom: 1.5rem; }
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--c-bg);
+    color: var(--c-text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+  .header {
+    background: var(--c-theater);
+    color: #F8F7F4;
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid rgba(248, 247, 244, 0.12);
+  }
+  .header h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 2rem;
+    font-weight: 650;
+    font-variation-settings: "opsz" 72;
+    letter-spacing: 0.01em;
+  }
+  .header p { color: rgba(248, 247, 244, 0.78); margin-top: 0.3rem; }
+  .container { max-width: 960px; margin: 2.2rem auto 2.8rem; padding: 0 1.5rem; }
+  .card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+  }
+  .card:not(.hidden) { animation: card-enter 0.3s ease-in-out; }
+  .card:hover { box-shadow: 0 14px 30px rgba(28, 25, 23, 0.1); }
+  @keyframes card-enter {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
   #step-template { position: relative; }
   .settings-gear {
     position: absolute;
@@ -20,89 +70,125 @@
     width: 38px;
     height: 38px;
     border-radius: 999px;
-    border: 1.5px solid #dfe6e9;
-    background: #fff;
-    color: #636e72;
+    border: 1.5px solid var(--c-border);
+    background: var(--c-surface);
+    color: var(--c-text-secondary);
     font-size: 1.1rem;
     font-weight: 700;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    box-shadow: var(--shadow-sm);
     transition: all 0.2s;
     z-index: 2;
   }
-  .settings-gear:hover { border-color: #E94845; color: #E94845; transform: translateY(-1px); }
-  .settings-gear.active { border-color: #E94845; color: #E94845; background: #fff5f5; }
-  .step-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #E94845; margin-bottom: 0.5rem; }
-  .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1.25rem; }
+  .settings-gear:hover { border-color: var(--c-primary); color: var(--c-primary); transform: translateY(-1px); }
+  .settings-gear.active { border-color: var(--c-primary); color: var(--c-primary); background: var(--c-primary-bg); }
+  .step-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--c-primary);
+    margin-bottom: 0.55rem;
+  }
+  .section-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.55rem;
+    font-weight: 620;
+    font-variation-settings: "opsz" 60;
+    margin-bottom: 1.2rem;
+  }
 
   .scenario-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
   .scenario-chip {
-    border: 1.5px solid #dfe6e9; border-radius: 999px; background: #fff; color: #636e72;
-    padding: 0.35rem 0.8rem; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    border: 1.5px solid var(--c-border);
+    border-radius: 999px;
+    background: var(--c-surface);
+    color: var(--c-text-secondary);
+    padding: 0.38rem 0.84rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
   }
-  .scenario-chip.active { border-color: #E94845; color: #E94845; background: #fff5f5; }
+  .scenario-chip:hover { border-color: var(--c-border-strong); color: var(--c-text); }
+  .scenario-chip.active { border-color: var(--c-primary); color: var(--c-primary); background: var(--c-primary-bg); }
 
   .theme-upload-row {
-    margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dfe6e9;
+    margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--c-border);
     display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
   }
-  .theme-upload-note { font-size: 0.8rem; color: #636e72; }
-  .theme-cli-toggle { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: #636e72; }
-  .theme-settings-wrap { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dfe6e9; }
+  .template-top-actions {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 0.95rem;
+    flex-wrap: wrap;
+  }
+  .btn-quiet {
+    background: #F6F5F2;
+    border-color: var(--c-border);
+    color: var(--c-text-secondary);
+  }
+  .btn-quiet:hover {
+    background: #EFEEEA;
+    color: var(--c-text);
+  }
+  .theme-upload-note { font-size: 0.8rem; color: var(--c-text-secondary); }
+  .theme-cli-toggle { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--c-text-secondary); }
+  .theme-settings-wrap { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--c-border); }
   .settings-tabs { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
   .settings-tab {
-    border: 1px solid #dfe6e9;
-    background: #fff;
-    color: #636e72;
+    border: 1px solid var(--c-border);
+    background: var(--c-surface);
+    color: var(--c-text-secondary);
     border-radius: 999px;
     padding: 0.35rem 0.75rem;
     font-size: 0.78rem;
     font-weight: 700;
     cursor: pointer;
   }
-  .settings-tab.active { border-color: #E94845; color: #E94845; background: #fff5f5; }
+  .settings-tab.active { border-color: var(--c-primary); color: var(--c-primary); background: var(--c-primary-bg); }
   .settings-page { display: none; }
   .settings-page.active { display: block; }
-  .settings-hint { font-size: 0.8rem; color: #636e72; margin-bottom: 0.6rem; }
+  .settings-hint { font-size: 0.8rem; color: var(--c-text-secondary); margin-bottom: 0.6rem; }
   .settings-list { display: grid; gap: 0.55rem; }
   .settings-item {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0.8rem;
     align-items: center;
-    border: 1px solid #eceff1;
+    border: 1px solid var(--c-border);
     border-radius: 10px;
     padding: 0.65rem 0.75rem;
     background: #fff;
   }
-  .settings-item-title { font-size: 0.88rem; font-weight: 600; color: #2d3436; }
-  .settings-item-meta { font-size: 0.74rem; color: #95a5a6; }
+  .settings-item-title { font-size: 0.88rem; font-weight: 600; color: var(--c-text); }
+  .settings-item-meta { font-size: 0.74rem; color: var(--c-text-secondary); }
   .settings-actions { display: inline-flex; align-items: center; gap: 0.45rem; }
   .settings-actions { flex-wrap: wrap; justify-content: flex-end; }
   .settings-btn {
-    border: 1px solid #dfe6e9;
-    background: #fff;
-    color: #2d3436;
+    border: 1px solid var(--c-border);
+    background: var(--c-surface);
+    color: var(--c-text);
     border-radius: 7px;
     padding: 0.26rem 0.55rem;
     font-size: 0.74rem;
     font-weight: 700;
     cursor: pointer;
   }
-  .settings-btn:hover { background: #f8f9fa; }
+  .settings-btn:hover { background: #F5F4F1; }
   .settings-btn.warn { border-color: #f1c0bf; color: #c0392b; }
 
   /* Template cards */
   .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
-  .template-card { border: 2px solid #e0e0e0; border-radius: 8px; padding: 0; cursor: pointer; transition: all 0.2s; overflow: hidden; }
-  .template-card:hover { border-color: #E94845; box-shadow: 0 2px 8px rgba(233,72,69,0.15); }
-  .template-card.selected { border-color: #E94845; background: #fff5f5; }
+  .template-card { border: 1.5px solid var(--c-border); border-radius: 12px; padding: 0; cursor: pointer; transition: all 0.25s ease; overflow: hidden; }
+  .template-card:hover { border-color: var(--c-primary); box-shadow: 0 10px 24px rgba(233,72,69,0.14); transform: translateY(-2px); }
+  .template-card.selected { border-color: var(--c-primary); background: var(--c-primary-bg); }
   .template-card h3 { font-size: 1rem; margin-bottom: 0.4rem; }
-  .template-card p { font-size: 0.85rem; color: #636e72; }
-  .template-badge { display: inline-block; background: #E94845; color: white; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; }
+  .template-card p { font-size: 0.85rem; color: var(--c-text-secondary); }
+  .template-badge { display: inline-block; background: var(--c-primary); color: white; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; }
   .template-card-body { padding: 1rem 1.25rem 1.25rem; }
   .template-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.65rem; }
   .template-delete-btn {
@@ -120,12 +206,12 @@
   .template-thumb-wrap {
     width: 100%;
     aspect-ratio: 4/3;
-    background: #f0ede8;
+    background: #F2F0EA;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--c-border);
   }
   .template-thumb-wrap img {
     width: 100%;
@@ -139,52 +225,51 @@
   .template-thumb-placeholder {
     width: 100%;
     aspect-ratio: 4/3;
-    background: linear-gradient(135deg, #f0ede8 0%, #e7e4df 100%);
+    background: #F2F0EA;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 2rem;
-    color: #b2a99e;
-    border-bottom: 1px solid #e0e0e0;
+    color: #B8ADA0;
+    border-bottom: 1px solid var(--c-border);
   }
 
   /* Upload zone */
-  .upload-zone { border: 2px dashed #b2bec3; border-radius: 8px; padding: 2.5rem; text-align: center; cursor: pointer; transition: all 0.2s; }
-  .upload-zone:hover, .upload-zone.drag-over { border-color: #E94845; background: #fff5f5; }
+  .upload-zone { border: 2px dashed var(--c-border-strong); border-radius: 12px; padding: 2.5rem; text-align: center; cursor: pointer; transition: all 0.2s; background: #FCFBF9; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--c-primary); background: var(--c-primary-bg); }
   .upload-zone .icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
-  .upload-zone p { color: #636e72; }
-  .upload-zone .filename { color: #E94845; font-weight: 600; margin-top: 0.5rem; }
+  .upload-zone p { color: var(--c-text-secondary); }
+  .upload-zone .filename { color: var(--c-primary); font-weight: 700; margin-top: 0.5rem; }
   #md-input { display: none; }
 
   /* Form */
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
   .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-  .form-group label { font-size: 0.875rem; font-weight: 500; color: #2d3436; }
+  .form-group label { font-size: 0.875rem; font-weight: 600; color: var(--c-text); }
   .form-group input[type=text], .form-group input[type=color] {
-    border: 1.5px solid #dfe6e9; border-radius: 6px; padding: 0.6rem 0.75rem; font-size: 0.95rem; transition: border 0.2s;
+    border: 1.5px solid var(--c-border); border-radius: 8px; padding: 0.62rem 0.78rem; font-size: 0.95rem; transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .form-group input[type=text]:focus { outline: none; border-color: #E94845; }
+  .form-group input[type=text]:focus { outline: none; border-color: var(--c-primary); box-shadow: 0 0 0 3px rgba(233,72,69,0.12); }
   .form-group input[type=color] { padding: 0.3rem; height: 2.5rem; cursor: pointer; }
   .form-group input[type=file] { font-size: 0.875rem; }
-  .form-group .hint { font-size: 0.75rem; color: #b2bec3; }
-  .required-star { color: #E94845; }
+  .form-group .hint { font-size: 0.75rem; color: #A8A29E; }
+  .required-star { color: var(--c-primary); }
   .full-width { grid-column: 1 / -1; }
 
   /* Buttons */
-  .btn { padding: 0.75rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-  .btn-primary { background: #E94845; color: white; }
-  .btn-primary:hover { background: #c0392b; }
-  .btn-primary:disabled { background: #b2bec3; cursor: not-allowed; }
-  .btn-secondary { background: #f5f6fa; color: #2d3436; border: 1.5px solid #dfe6e9; }
-  .btn-secondary:hover { background: #e0e0e0; }
+  .btn { padding: 0.72rem 1.2rem; border: 1.5px solid transparent; border-radius: 8px; font-size: 0.94rem; font-weight: 700; cursor: pointer; transition: all 0.18s ease; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--c-primary); color: white; }
+  .btn-primary:hover { background: var(--c-primary-hover); box-shadow: 0 8px 16px rgba(214,58,55,0.22); }
+  .btn-primary:disabled { background: #C2BDB8; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-secondary { background: var(--c-surface); color: var(--c-text); border-color: var(--c-border); }
+  .btn-secondary:hover { background: #F5F4F1; border-color: var(--c-border-strong); }
   .btn-download { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.25rem; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
-  .btn-pdf { background: #E94845; color: white; }
-  .btn-pdf:hover { background: #c0392b; }
-  .btn-docx { background: #2980b9; color: white; }
-  .btn-docx:hover { background: #1e6fa3; }
-  .btn-odt { background: #27ae60; color: white; }
-  .btn-odt:hover { background: #1e8449; }
+  .btn-pdf { background: var(--c-primary); color: white; }
+  .btn-pdf:hover { background: var(--c-primary-hover); }
+  .btn-docx, .btn-odt { background: var(--c-surface); color: var(--c-text); border: 1.5px solid var(--c-border); }
+  .btn-docx:hover, .btn-odt:hover { background: #F5F4F1; border-color: var(--c-border-strong); }
 
   /* Conversion progress */
   .spinner-overlay { display: none; position: fixed; inset: 0; background: rgba(28,25,23,0.72); z-index: 100; align-items: center; justify-content: center; padding: 1.5rem; }
@@ -223,7 +308,7 @@
     width: 0%;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #E94845 0%, #F37572 100%);
+    background: var(--c-primary);
     transition: width 0.35s ease;
   }
   .progress-meta { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.82rem; color: rgba(248,247,244,0.72); }
@@ -270,7 +355,7 @@
 
   /* Results */
   .result-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
-  .pdf-preview { width: 100%; height: 600px; border: 1px solid #dfe6e9; border-radius: 8px; }
+  .pdf-preview { width: 100%; height: 600px; border: 1px solid var(--c-border); border-radius: 12px; box-shadow: var(--shadow-lg); }
 
   /* Error */
   .error-box { background: #fff5f5; border: 1.5px solid #e74c3c; border-radius: 8px; padding: 1rem 1.25rem; color: #c0392b; font-size: 0.9rem; white-space: pre-wrap; }
@@ -278,13 +363,221 @@
   .warning-box { background: #fff7ed; border: 1.5px solid #fdba74; border-radius: 8px; padding: 1rem 1.25rem; color: #9a3412; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; }
 
   /* Steps navigation */
-  .steps-nav { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
-  .step-dot { width: 8px; height: 8px; border-radius: 50%; background: #dfe6e9; transition: all 0.2s; }
-  .step-dot.active { background: #E94845; transform: scale(1.3); }
-  .step-dot.done { background: #27ae60; }
+  .steps-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 1.35rem;
+  }
+  .step-dot-wrap {
+    border: 1px solid var(--c-border);
+    border-radius: 10px;
+    background: #FCFBF9;
+    padding: 0.45rem 0.55rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    transition: all 0.2s;
+  }
+  .step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--c-border-strong);
+    transition: all 0.2s;
+    flex: 0 0 auto;
+  }
+  .step-dot-label {
+    font-size: 0.75rem;
+    color: var(--c-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .step-dot.active { background: var(--c-primary); transform: scale(1.2); }
+  .step-dot.done { background: var(--c-success); }
+  .step-dot-wrap.is-active {
+    border-color: rgba(233, 72, 69, 0.45);
+    background: var(--c-primary-bg);
+  }
+  .step-dot-wrap.is-done {
+    border-color: rgba(22, 163, 74, 0.35);
+    background: rgba(22, 163, 74, 0.07);
+  }
+  .step-dot-wrap.is-active .step-dot-label,
+  .step-dot-wrap.is-done .step-dot-label { color: var(--c-text); font-weight: 600; }
 
   .hidden { display: none !important; }
-  .actions-row { display: flex; gap: 1rem; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; }
+  .actions-row { display: flex; gap: 0.75rem; align-items: center; margin-top: 1.4rem; flex-wrap: wrap; }
+
+  .card.is-current {
+    border-color: rgba(233, 72, 69, 0.42);
+    box-shadow: 0 16px 34px rgba(233, 72, 69, 0.12);
+    transform: translateY(-1px);
+  }
+  .card.is-complete {
+    border-color: rgba(22, 163, 74, 0.28);
+  }
+
+  #step-result {
+    background: var(--c-theater);
+    color: #F8F7F4;
+    border-color: #3F3733;
+    box-shadow: var(--shadow-lg);
+  }
+  #step-result .step-label { color: #F8B4B2; }
+  #step-result .section-title { color: #F8F7F4; }
+  #step-result .result-actions {
+    background: rgba(248, 247, 244, 0.04);
+    border: 1px solid rgba(248, 247, 244, 0.12);
+    border-radius: 12px;
+    padding: 0.9rem;
+  }
+  #step-result .btn-secondary {
+    background: transparent;
+    color: #F8F7F4;
+    border-color: rgba(248, 247, 244, 0.25);
+  }
+  #step-result .btn-secondary:hover {
+    background: rgba(248, 247, 244, 0.1);
+    border-color: rgba(248, 247, 244, 0.4);
+  }
+
+  .theme-inline-input,
+  .theme-inline-textarea {
+    min-width: 220px;
+    padding: 0.6rem 0.75rem;
+    border: 1.5px solid var(--c-border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--c-text);
+    background: var(--c-surface);
+  }
+  .theme-inline-textarea {
+    min-width: 280px;
+    flex: 1;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  .theme-inline-input:focus,
+  .theme-inline-textarea:focus {
+    outline: none;
+    border-color: var(--c-primary);
+    box-shadow: 0 0 0 3px rgba(233,72,69,0.12);
+  }
+
+  .batch-progress {
+    margin-top: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--c-border);
+    border-radius: 10px;
+    background: #FCFBF9;
+    font-size: 0.875rem;
+  }
+  .batch-progress-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+  .batch-progress-status {
+    font-weight: 700;
+    color: var(--c-text);
+  }
+  .batch-progress-counter {
+    color: var(--c-text-secondary);
+    font-size: 0.8rem;
+  }
+  .batch-progress-track {
+    width: 100%;
+    height: 6px;
+    background: var(--c-border);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 0.6rem;
+  }
+  .batch-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--c-primary);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+  }
+  .batch-progress-results {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    background: rgba(28, 25, 23, 0.62);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal-panel {
+    width: min(900px, 100%);
+    max-height: 88vh;
+    overflow: auto;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    padding: 1rem 1rem 1.15rem;
+  }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    margin-bottom: 0.9rem;
+  }
+  .modal-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.28rem;
+    font-weight: 620;
+    color: var(--c-text);
+  }
+  .modal-subtitle {
+    margin-top: 0.2rem;
+    color: var(--c-text-secondary);
+    font-size: 0.82rem;
+  }
+  .modal-close {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--c-border);
+    background: var(--c-surface);
+    color: var(--c-text-secondary);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .modal-close:hover {
+    color: var(--c-text);
+    background: #F6F5F2;
+  }
+  body.modal-open {
+    overflow: hidden;
+  }
+
+  @media (max-width: 700px) {
+    .header { padding: 1.25rem 1rem; }
+    .header h1 { font-size: 1.55rem; }
+    .container { margin-top: 1.25rem; padding: 0 1rem; }
+    .card { padding: 1.2rem; }
+    .section-title { font-size: 1.35rem; }
+    .steps-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
 </style>
 </head>
 <body>
@@ -297,26 +590,20 @@
 <div class="container">
   <!-- Steps indicator -->
   <div class="steps-nav" id="steps-nav">
-    <div class="step-dot active" id="dot-0"></div>
-    <div class="step-dot" id="dot-1"></div>
-    <div class="step-dot" id="dot-2"></div>
-    <div class="step-dot" id="dot-3"></div>
+    <div class="step-dot-wrap is-active" id="dot-wrap-0"><div class="step-dot active" id="dot-0"></div><span class="step-dot-label">Template</span></div>
+    <div class="step-dot-wrap" id="dot-wrap-1"><div class="step-dot" id="dot-1"></div><span class="step-dot-label">Upload</span></div>
+    <div class="step-dot-wrap" id="dot-wrap-2"><div class="step-dot" id="dot-2"></div><span class="step-dot-label">Settings</span></div>
+    <div class="step-dot-wrap" id="dot-wrap-3"><div class="step-dot" id="dot-3"></div><span class="step-dot-label">Result</span></div>
   </div>
 
   <!-- Step 0: Template selection -->
   <div class="card" id="step-template">
-    <button
-      type="button"
-      class="settings-gear"
-      id="btn-toggle-settings"
-      onclick="toggleThemeSettings()"
-      aria-label="Toggle Theme Settings"
-      title="Theme Settings"
-    >
-      &#9881;
-    </button>
     <div class="step-label">Step 1</div>
     <div class="section-title">Choose a Template</div>
+    <div class="template-top-actions">
+      <button type="button" class="btn btn-secondary btn-quiet" onclick="openThemeInstallModal()">Install Templates</button>
+      <button type="button" class="btn btn-secondary btn-quiet" onclick="openThemeSettingsModal()">Theme Settings</button>
+    </div>
     <div class="scenario-row" id="scenario-row">
       <button type="button" class="scenario-chip active" data-scenario="all">All</button>
       <button type="button" class="scenario-chip" data-scenario="academic">Academic</button>
@@ -328,45 +615,69 @@
     <div class="template-grid" id="template-grid">
       <div style="color:#b2bec3">Loading templates&hellip;</div>
     </div>
-    <div class="theme-upload-row">
-      <input type="file" id="theme-zip-input" accept=".zip,.tar.gz,.tgz" style="display:none" onchange="handleThemeFileSelect(event)">
-      <button type="button" class="btn btn-secondary" onclick="document.getElementById('theme-zip-input').click()">Upload Theme</button>
-      <input type="text" id="theme-github-input" placeholder="owner/repo or paste CLI command" style="min-width:220px;padding:0.6rem 0.75rem;border:1.5px solid #dfe6e9;border-radius:6px;">
-      <label class="theme-cli-toggle"><input type="checkbox" id="theme-install-via-cli"> Use CLI</label>
-      <button type="button" class="btn btn-secondary" onclick="handleThemeGithubInstall()">Install from GitHub</button>
-      <span class="theme-upload-note" id="theme-upload-note">Required files: meta.json, template.typ, wrapper.typ.jinja. GitHub box also accepts full CLI command.</span>
-    </div>
-    <div class="theme-upload-row">
-      <textarea id="typst-init-spec" rows="3" placeholder="@preview/package-name:version&#10;@preview/another-theme:0.1.0&#10;&#10;Paste one or more specs, one per line" style="min-width:280px;flex:1;padding:0.6rem 0.75rem;border:1.5px solid #dfe6e9;border-radius:6px;font-family:inherit;font-size:0.9rem;resize:vertical;line-height:1.5"></textarea>
-      <button type="button" class="btn btn-secondary" onclick="handleTypstInit()">Install Packages</button>
-      <span class="theme-upload-note" id="typst-init-note">e.g., @preview/aero-dhbw:0.1.1 — supports multi-line batch</span>
-    </div>
-    <div id="typst-batch-progress" class="hidden" style="margin-top:0.75rem;padding:0.75rem 1rem;border:1px solid #e0e0e0;border-radius:8px;background:#f8f7f4;font-size:0.875rem;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
-        <span id="typst-batch-status" style="font-weight:600;color:#1C1917"></span>
-        <span id="typst-batch-counter" style="color:#78716C;font-size:0.8rem"></span>
-      </div>
-      <div style="width:100%;height:6px;background:#e7e5e4;border-radius:999px;overflow:hidden;margin-bottom:0.6rem">
-        <div id="typst-batch-bar" style="height:100%;width:0%;background:#E94845;border-radius:999px;transition:width 0.3s ease"></div>
-      </div>
-      <div id="typst-batch-results" style="display:flex;flex-direction:column;gap:0.3rem;max-height:160px;overflow-y:auto"></div>
-    </div>
-    <div class="theme-settings-wrap hidden" id="theme-settings-wrap">
-      <div class="settings-tabs">
-        <button type="button" class="settings-tab active" data-settings-tab="persistence" onclick="switchSettingsPage('persistence')">Settings Page 1: Permanence</button>
-        <button type="button" class="settings-tab" data-settings-tab="deletion" onclick="switchSettingsPage('deletion')">Settings Page 2: Deletion</button>
-      </div>
-      <div class="settings-page active" id="settings-page-persistence">
-        <div class="settings-hint">Pin a theme to make it permanent (stored in templates_custom and protected from deletion).</div>
-        <div class="settings-list" id="settings-list-persistence"></div>
-      </div>
-      <div class="settings-page" id="settings-page-deletion">
-        <div class="settings-hint">Only non-permanent themes can be deleted. Unpin first if needed.</div>
-        <div class="settings-list" id="settings-list-deletion"></div>
-      </div>
-    </div>
     <div class="actions-row">
       <button class="btn btn-primary" id="btn-next-template" disabled onclick="goToStep(1)">Next &rarr;</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="theme-install-modal" onclick="if(event.target===this) closeThemeInstallModal()">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Install Templates</div>
+          <div class="modal-subtitle">Upload package, install from GitHub, or init Typst package.</div>
+        </div>
+        <button class="modal-close" type="button" onclick="closeThemeInstallModal()">&#10005;</button>
+      </div>
+      <div class="theme-upload-row" style="margin-top:0;padding-top:0;border-top:none;">
+        <input type="file" id="theme-zip-input" accept=".zip,.tar.gz,.tgz" style="display:none" onchange="handleThemeFileSelect(event)">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('theme-zip-input').click()">Upload Theme</button>
+        <input type="text" id="theme-github-input" class="theme-inline-input" placeholder="owner/repo or paste CLI command">
+        <label class="theme-cli-toggle"><input type="checkbox" id="theme-install-via-cli"> Use CLI</label>
+        <button type="button" class="btn btn-secondary" onclick="handleThemeGithubInstall()">Install from GitHub</button>
+        <span class="theme-upload-note" id="theme-upload-note">Required files: meta.json, template.typ, wrapper.typ.jinja. GitHub box also accepts full CLI command.</span>
+      </div>
+      <div class="theme-upload-row">
+        <textarea id="typst-init-spec" class="theme-inline-textarea" rows="3" placeholder="@preview/package-name:version&#10;@preview/another-theme:0.1.0&#10;&#10;Paste one or more specs, one per line"></textarea>
+        <button type="button" class="btn btn-secondary" onclick="handleTypstInit()">Install Packages</button>
+        <span class="theme-upload-note" id="typst-init-note">e.g., @preview/aero-dhbw:0.1.1 — supports multi-line batch</span>
+      </div>
+      <div id="typst-batch-progress" class="batch-progress hidden">
+        <div class="batch-progress-head">
+          <span id="typst-batch-status" class="batch-progress-status"></span>
+          <span id="typst-batch-counter" class="batch-progress-counter"></span>
+        </div>
+        <div class="batch-progress-track">
+          <div id="typst-batch-bar" class="batch-progress-bar"></div>
+        </div>
+        <div id="typst-batch-results" class="batch-progress-results"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="theme-settings-modal" onclick="if(event.target===this) closeThemeSettingsModal()">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Theme Settings</div>
+          <div class="modal-subtitle">Manage permanence, scenario tags, and deletion permissions.</div>
+        </div>
+        <button class="modal-close" type="button" onclick="closeThemeSettingsModal()">&#10005;</button>
+      </div>
+      <div class="theme-settings-wrap" id="theme-settings-wrap" style="margin-top:0;padding-top:0;border-top:none;">
+        <div class="settings-tabs">
+          <button type="button" class="settings-tab active" data-settings-tab="persistence" onclick="switchSettingsPage('persistence')">Settings Page 1: Permanence</button>
+          <button type="button" class="settings-tab" data-settings-tab="deletion" onclick="switchSettingsPage('deletion')">Settings Page 2: Deletion</button>
+        </div>
+        <div class="settings-page active" id="settings-page-persistence">
+          <div class="settings-hint">Pin a theme to make it permanent (stored in templates_custom and protected from deletion).</div>
+          <div class="settings-list" id="settings-list-persistence"></div>
+        </div>
+        <div class="settings-page" id="settings-page-deletion">
+          <div class="settings-hint">Only non-permanent themes can be deleted. Unpin first if needed.</div>
+          <div class="settings-list" id="settings-list-deletion"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -452,7 +763,6 @@ let selectedScenario = 'all';
 let progressTimer = null;
 let progressStartAt = 0;
 let progressValue = 0;
-let settingsVisible = false;
 
 const conversionPhases = [
   { key: 'upload', label: 'Uploading markdown', status: 'sending', percent: 14, subtitle: 'Sending your markdown, selected theme, and document settings to the server.' },
@@ -549,20 +859,36 @@ function canDeleteTemplate(meta) {
   return !!meta.deletable;
 }
 
-function toggleThemeSettings(forceVisible) {
-  if (typeof forceVisible === 'boolean') {
-    settingsVisible = forceVisible;
-  } else {
-    settingsVisible = !settingsVisible;
-  }
+function openModal(modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  modal.classList.add('active');
+  document.body.classList.add('modal-open');
+}
 
-  const panel = document.getElementById('theme-settings-wrap');
-  const btn = document.getElementById('btn-toggle-settings');
-  if (!panel || !btn) return;
-  panel.classList.toggle('hidden', !settingsVisible);
-  btn.classList.toggle('active', settingsVisible);
-  btn.setAttribute('aria-label', settingsVisible ? 'Hide Theme Settings' : 'Show Theme Settings');
-  btn.setAttribute('title', settingsVisible ? 'Hide Theme Settings' : 'Show Theme Settings');
+function closeModal(modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  modal.classList.remove('active');
+  if (!document.querySelector('.modal-overlay.active')) {
+    document.body.classList.remove('modal-open');
+  }
+}
+
+function openThemeSettingsModal() {
+  openModal('theme-settings-modal');
+}
+
+function closeThemeSettingsModal() {
+  closeModal('theme-settings-modal');
+}
+
+function openThemeInstallModal() {
+  openModal('theme-install-modal');
+}
+
+function closeThemeInstallModal() {
+  closeModal('theme-install-modal');
 }
 
 function switchSettingsPage(tabKey) {
@@ -1234,12 +1560,25 @@ const steps = ['step-template', 'step-upload', 'step-params', 'step-result'];
 
 function goToStep(n) {
   steps.forEach((id, i) => {
-    document.getElementById(id).classList.toggle('hidden', i !== n);
+    const stepEl = document.getElementById(id);
+    stepEl.classList.toggle('hidden', i !== n);
+    stepEl.classList.toggle('is-current', i === n);
+    stepEl.classList.toggle('is-complete', i < n);
+
     const dot = document.getElementById('dot-' + i);
+    const dotWrap = document.getElementById('dot-wrap-' + i);
     dot.classList.toggle('active', i === n);
     dot.classList.toggle('done', i < n);
+    if (dotWrap) {
+      dotWrap.classList.toggle('is-active', i === n);
+      dotWrap.classList.toggle('is-done', i < n);
+    }
   });
   if (n === 2) renderParamsForm();
+  const activeCard = document.getElementById(steps[n]);
+  if (activeCard) {
+    activeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 function reset() {
@@ -1255,7 +1594,8 @@ function reset() {
   document.getElementById('theme-upload-note').textContent = 'Required files: meta.json, template.typ, wrapper.typ.jinja';
   stopConversionProgress();
   setConvertButtonState(false);
-  toggleThemeSettings(false);
+  closeThemeSettingsModal();
+  closeThemeInstallModal();
   goToStep(0);
   refreshTemplates();
 }
@@ -1360,6 +1700,12 @@ function deriveTitleFromFilename(filename) {
 }
 
 init();
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  closeThemeSettingsModal();
+  closeThemeInstallModal();
+});
 </script>
 </body>
 </html>
