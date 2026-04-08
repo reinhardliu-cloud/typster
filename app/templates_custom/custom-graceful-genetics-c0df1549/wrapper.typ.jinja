@@ -1,3 +1,48 @@
-#import {{ (template_path ~ '/template.typ')|tojson }}: *
+#import "@preview/graceful-genetics:0.2.0" as graceful-genetics
+#import "@preview/physica:0.9.3"
+
+#show: graceful-genetics.template.with(
+  title: {{ typst_params["title"] }},
+  authors: (
+    (
+      name: "Johanna Swift",
+      department: "Primary Logistics Department",
+      institution: "Delivery Institute",
+      city: "Berlin",
+      country: "Germany",
+      mail: "swift@delivery.de",
+    ),
+    (
+      name: "Egon Stellaris",
+      department: "Communications Group",
+      institution: "Space Institute",
+      city: "Florence",
+      country: "Italy",
+      mail: "stegonaris@space.it",
+    ),
+    (
+      name: "Oliver Liam",
+      department: "Missing Letters Task Force",
+      institution: "Mail Institute",
+      city: "Budapest",
+      country: "Hungary",
+      mail: "oliver.liam@mail.hu",
+    ),
+  ),
+  date: (
+    year: 2022,
+    month: "May",
+    day: 17,
+  ),
+  keywords: (
+    "Space",
+    "Mail",
+    "Astromail",
+    "Faster-than-Light",
+    "Mars",
+  ),
+  doi: {{ typst_params["doi"] }},
+  abstract: {{ typst_params["abstract"] }},
+)
 
 {{ body }}

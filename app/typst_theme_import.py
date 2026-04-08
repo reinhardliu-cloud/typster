@@ -279,6 +279,12 @@ def _extract_directive_prefix(main_content: str) -> str:
 
 def ensure_typst_init_adapter(theme_dir: Path, package_spec: str | None = None, meta: dict | None = None) -> dict:
 	main_path = theme_dir / "main.typ"
+	entrypoint = "main.typ"
+	if not main_path.exists():
+		fallback_main = theme_dir / "template" / "main.typ"
+		if fallback_main.exists():
+			main_path = fallback_main
+			entrypoint = "template/main.typ"
 	if not main_path.exists():
 		if meta is None:
 			raise ValueError("Cannot generate adapter without main.typ")
@@ -311,7 +317,7 @@ def ensure_typst_init_adapter(theme_dir: Path, package_spec: str | None = None, 
 	current_meta["params"] = params
 	current_meta["adapter_generated"] = True
 	current_meta["adapter_mode"] = "typst-init-main"
-	current_meta["adapter_entrypoint"] = "main.typ"
+	current_meta["adapter_entrypoint"] = entrypoint
 	current_meta["adapter_args"] = [arg["key"] for arg in parsed_args]
 
 	meta_path = theme_dir / "meta.json"

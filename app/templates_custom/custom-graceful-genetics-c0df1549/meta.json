@@ -12,14 +12,27 @@
       "type": "text",
       "label": "Title",
       "required": false,
-      "default": ""
+      "default": "Towards Swifter Interstellar Mail Delivery",
+      "typst_kind": "content",
+      "typst_optional": false
     },
     {
-      "key": "author",
+      "key": "doi",
       "type": "text",
-      "label": "Author",
+      "label": "Doi",
       "required": false,
-      "default": ""
+      "default": "10.7891/120948510",
+      "typst_kind": "string",
+      "typst_optional": false
+    },
+    {
+      "key": "abstract",
+      "type": "text",
+      "label": "Abstract",
+      "required": false,
+      "default": "Recent advances in space-based document processing have enabled faster mail delivery between different planets of a solar system. Given the time it takes for a message to be transmitted from one planet to the next, its estimated that even a one-way trip to a distant destination could take up to one year. During these periods of interplanetary mail delivery there is a slight possibility of mail being lost in transit. This issue is considered so serious that space management employs P.I. agents to track down and retrieve lost mail. We propose A-Mail, a new anti-matter based approach that can ensure that mail loss occurring during interplanetary transit is unobservable and therefore potentially undetectable. Going even further, we extend A-Mail to predict problems and apply existing and new best practices to ensure the mail is delivered without any issues. We call this extension AI-Mail.",
+      "typst_kind": "content",
+      "typst_optional": false
     }
   ],
   "tags": [
@@ -32,5 +45,19 @@
     "genetics",
     "biology",
     "life-science"
+  ],
+  "params_source": "declared",
+  "converter_compatible": true,
+  "source_ref": "None",
+  "adapter_generated": true,
+  "adapter_mode": "typst-init-main",
+  "adapter_entrypoint": "template/main.typ",
+  "adapter_args": [
+    "title",
+    "authors",
+    "date",
+    "keywords",
+    "doi",
+    "abstract"
   ]
 }
