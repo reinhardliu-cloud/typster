@@ -720,7 +720,7 @@ async def api_convert(
     
     try:
         md_bytes = await md_file.read()
-        md_content = md_bytes.decode("utf-8")
+        md_content = md_bytes.decode("utf-8-sig")  # utf-8-sig strips UTF-8 BOM if present
         logger.info(f"[CONVERT] MD file read successfully. Size: {len(md_bytes)} bytes")
     except UnicodeDecodeError as e:
         logger.error(f"[CONVERT] Unicode decode error: {e}")

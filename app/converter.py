@@ -300,6 +300,19 @@ def convert(
     template_dir = resolve_template_dir(safe_template_id, session_id=session_id)
     meta = load_template_meta(template_dir)
 
+    # Auto-heal Typst package style themes that keep entrypoint under template/main.typ.
+    # This prevents missing relative assets (e.g. image files) caused by legacy wrappers.
+    if (template_dir / "template" / "main.typ").exists():
+        try:
+            ensure_typst_init_adapter(
+                template_dir,
+                package_spec=str(meta.get("source_ref", "") or None),
+                meta=meta,
+            )
+            meta = load_template_meta(template_dir)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not refresh theme adapter for %s: %s", safe_template_id, exc)
+
     if not meta.get("converter_compatible", True):
         raise ValueError(
             str(meta.get("converter_message") or "This theme is not compatible with the web converter.")
@@ -312,9 +325,16 @@ def convert(
             f"installed version {resolved_template_version!r}"
         )
 
-    # Write full markdown (with frontmatter) for docx/odt
+    # Write full markdown (with frontmatter) for reference; pandoc gets body-only
     input_md = session_dir / "input.md"
     input_md.write_text(md_content, encoding="utf-8")
+
+    # Write frontmatter-stripped markdown for pandoc.
+    # Pandoc's YAML parser rejects unquoted values containing colons (e.g. URLs,
+    # titles like "Foo: Bar"), so we strip the frontmatter before handing the file
+    # to pandoc. We handle all template params ourselves via parse_frontmatter.
+    body_only_md = session_dir / "input_body.md"
+    body_only_md.write_text(strip_frontmatter(md_content), encoding="utf-8")
 
     # Parse frontmatter and merge params (override wins over frontmatter)
     frontmatter = parse_frontmatter(md_content)
@@ -344,9 +364,11 @@ def convert(
         logo_path = str(logo_file)
 
     # Step 4: pandoc md → typst body
+    # Use -yaml_metadata_block to prevent pandoc from treating --- dividers or
+    # colon-containing lines in the body as YAML, which causes exit 64 errors.
     body_typ = session_dir / "body.typ"
     run_cmd(
-        ["pandoc", str(input_md), "--to=typst", "--wrap=none", "-o", str(body_typ)],
+        ["pandoc", str(body_only_md), "--from=markdown-yaml_metadata_block", "--to=typst", "--wrap=none", "-o", str(body_typ)],
         cwd=str(session_dir),
     )
 
@@ -401,14 +423,14 @@ def convert(
     # Step 8: pandoc → docx
     output_docx = session_dir / "output.docx"
     run_cmd(
-        ["pandoc", str(input_md), "-o", str(output_docx)],
+        ["pandoc", str(body_only_md), "--from=markdown-yaml_metadata_block", "-o", str(output_docx)],
         cwd=str(session_dir),
     )
 
     # Step 9: pandoc → odt
     output_odt = session_dir / "output.odt"
     run_cmd(
-        ["pandoc", str(input_md), "-o", str(output_odt)],
+        ["pandoc", str(body_only_md), "--from=markdown-yaml_metadata_block", "-o", str(output_odt)],
         cwd=str(session_dir),
     )
 
